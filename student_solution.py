@@ -1,0 +1,78 @@
+import os
+from pathlib import Path
+from dataclasses import dataclass, field
+
+@dataclass
+class Graph:
+    n_ct: int
+    c_ct: int
+    adj_l: dict = field(init=False)
+    edges: set = field(default_factory=set)
+
+    def __init__(self, n_ct: int, c_ct: int):
+        self.n_ct = n_ct
+        self.c_ct = c_ct
+        self.adj_l = {}
+        for i in range(self.n_ct):
+            self.adj_l[i] = set()
+        self.edges = set()
+
+    def add_edge(self, u: int, v: int):
+        self.adj_l[u].add(v)
+        self.adj_l[v].add(u)
+        self.edges.add((min(u, v), max(u, v)))
+
+def init_graph(fp):
+    lines = []
+    with open(fp, "r", encoding="utf-8") as f:
+        for l in f:
+            lines.append(l)
+
+    n_ct = int(lines[0])
+    c_ct = int(lines[1])
+
+    g = Graph(n_ct, c_ct)
+
+    for line in lines[2:]:
+        u, v = line.split(" ")
+        g.add_edge(int(u), int(v))
+
+    print(f"{fp.name} initialized")
+
+# individual should be size n
+def decode_individual(graph, individual):
+    print("I'm decoding 0_0")
+
+# Dec number (from bin) -> gray code
+def bin_to_gray(n):
+    # Right shift n (1bit)
+    res = n >> 1
+
+    # XOR with original number
+    return n ^ res
+
+# Gray code -> binary code
+def gray_to_bin(n):
+    b = 0
+    # Traverse all bits of Gray code
+    while n > 0:
+        # Build binary number step by step using XOR
+        b ^= n
+        # Next bit
+        n = n >> 1
+
+    return b
+
+# Retrieve bit count for color
+def get_color_len(graph):
+    b_l = max(1, (graph.c_ct - 1).bit_length())
+    return b_l
+
+def main():
+    gdir = Path("graphs")
+    gpath = os.getcwd() / gdir
+    for f in gpath.iterdir():
+        init_graph(f)
+
+if __name__ == "__main__":
+    main()

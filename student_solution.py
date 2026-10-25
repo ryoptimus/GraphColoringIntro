@@ -39,14 +39,6 @@ def init_graph(fp):
 
     print(f"{fp.name} initialized")
 
-def encode_color(color, width):
-    gray_value = bin_to_gray(color)
-
-    # Convert Gray-coded integer into a list of bits
-    gray_bits = format(gray_value, f"0{width}b")
-
-    return [int(bit) for bit in gray_bits]
-
 # individual should be size n
 # return dict with node-color mapping
 def decode_individual(graph, individual):
@@ -106,11 +98,49 @@ def get_color_len(graph):
     b_l = max(1, (graph.c_ct - 1).bit_length())
     return b_l
 
+def run_ga(fp, population_size=300, ngen=200, cxpb=0.8, mutpb=0.3):
+    from deap import algorithms, base, creator, tools
+    graph = init_graph(fp)
+    width = get_color_len(graph)
+
+    def make_individual():
+        genome = []
+        for _ in range(graph.num_nodes):
+            genome.extend(encode_color(random.randrange(graph.num_colors)))
+        return creator.GraphColorIndividual(genome)
+
+    def encode_color(color, width):
+        gray_value = bin_to_gray(color)
+
+        # Convert Gray-coded integer into a list of bits
+        gray_bits = format(gray_value, f"0{width}b")
+
+        return [int(bit) for bit in gray_bits]
+
+    def mate_by_node(ind1, ind2):
+        # Swap complete color genes, never partial bit blocks.
+        for node in range(graph.num_nodes):
+            if random.random() < 0.5:
+                start = node * width
+                end = start + width
+                ind1[start:end], ind2[start:end] = ind2[start:end], ind1[start:end]
+        return ind1, ind2
+
+    def mutate_color(individual):
+        # On average mutate one node per selected individual.
+        for node in range(graph.num_nodes):
+            if random.random() < 1 / graph.num_nodes:
+                start = node * width
+                individual[start:start + width] = encode_color(
+                    random.randrange(graph.num_colors)
+                )
+        return (individual,)
+
 def main():
     gdir = Path("graphs")
     gpath = os.getcwd() / gdir
     for f in gpath.iterdir():
-        init_graph(f)
+        run_ga(f)
 
 if __name__ == "__main__":
     main()

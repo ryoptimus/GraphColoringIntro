@@ -4,24 +4,32 @@ from pathlib import Path
 from dataclasses import dataclass, field
 
 @dataclass
-class Graph:
-    n_ct: int
-    c_ct: int
-    adj_l: dict = field(init=False)
-    edges: set = field(default_factory=set)
+class AdjNode:
+    def __init__(self, vertex):
+        self.vertex = vertex
+        self.next = None
 
-    def __init__(self, n_ct: int, c_ct: int):
-        self.n_ct = n_ct
-        self.c_ct = c_ct
-        self.adj_l = {}
-        for i in range(self.n_ct):
-            self.adj_l[i] = set()
-        self.edges = set()
+@dataclass
+class Graph:
+    def __init__(self, n: int, k: int):
+        self.n = n
+        self.k = k
+        self.graph = [None] * n
+        self.edges = []
 
     def add_edge(self, u: int, v: int):
-        self.adj_l[u].add(v)
-        self.adj_l[v].add(u)
-        self.edges.add((min(u, v), max(u, v)))
+        # Add v to u's adjacency list
+        new_node = AdjNode(v)
+        new_node.next = self.graph[u]
+        self.graph[u] = new_node
+
+        # Add u to v's adjacency list
+        new_node = AdjNode(u)
+        new_node.next = self.graph[v]
+        self.graph[v] = new_node
+
+        # Store edge
+        self.edges.append((u, v))
 
 def init_graph(fp):
     lines = []
@@ -29,10 +37,10 @@ def init_graph(fp):
         for l in f:
             lines.append(l)
 
-    n_ct = int(lines[0])
-    c_ct = int(lines[1])
+    n = int(lines[0])
+    k = int(lines[1])
 
-    g = Graph(n_ct, c_ct)
+    g = Graph(n, k)
 
     for line in lines[2:]:
         u, v = line.split(" ")
@@ -40,10 +48,6 @@ def init_graph(fp):
 
     return g
 
-def eval_graph(graph, individual):
-    dmap = decode_individual(graph, individual)
-    result = sum(1 for u,v in graph.edges if dmap[u] != dmap[v])
-    return (result,)
 
 # Dec number (from bin) -> gray code
 def bin_to_gray(n):
@@ -67,35 +71,58 @@ def gray_to_bin(n):
 
 # Retrieve bit count for color
 def get_color_len(graph):
-    b_l = max(1, (graph.c_ct - 1).bit_length())
+    b_l = max(1, (graph.k - 1).bit_length())
     return b_l
 
 # Returns dict with node-color mapping
 def decode_individual(graph, individual):
     width = get_color_len(graph)
 
-    dmap = {}
-    for node in range(graph.n_ct):
+    if len(individual) != graph.n * width:
+        return None
+
+    dmap = []
+    for node in range(graph.n):
         start = node * width
 
         # Extract color bits
         bits = individual[start:start + width]
 
-        if any(bit not in (0, 1) for bit in bits):
-            return None
+        color = 0
 
-        # Convert list of bits into integer
-        gray_value = int("".join(map(str, bits)), 2)
+        for bit in bits:
+            if bit not in (0, 1):
+                return None
 
-        # Convert Gray-coded integer to color number
-        color = gray_to_bin(gray_value)
+            color = (color << 1) | bit
 
         # Reject invalid color values
-        if color >= graph.c_ct:
+        if color >= graph.k:
             return None
 
-        dmap[node] = color
+        dmap.append(color)
     return dmap
+
+def eval_graph(graph, individual):
+    dmap = decode_individual(graph, individual)
+
+    if dmap is None:
+        return (0.0,)
+
+    satisfied = 0
+
+    for u, v in graph.edges:
+        if dmap[u] != dmap[v]:
+            satisfied += 1
+
+    total_edges = len(graph.edges)
+
+    if total_edges == 0:
+        return (1.0,)
+
+    fitness = satisfied / total_edges
+
+    return (fitness,)
 
 def run_ga(fp, population_size=300, ngen=200, cxpb=0.8, mutpb=0.3):
     from deap import algorithms, base, creator, tools
@@ -110,21 +137,16 @@ def run_ga(fp, population_size=300, ngen=200, cxpb=0.8, mutpb=0.3):
 
     def make_individual():
         genome = []
-        for _ in range(graph.n_ct):
-            genome.extend(encode_color(random.randrange(graph.c_ct)))
+        for _ in range(graph.n):
+            genome.extend(encode_color(random.randrange(graph.k), width))
         return creator.GraphColorIndividual(genome)
 
-    def encode_color(color):
-        gray_value = bin_to_gray(color)
-
-        # Convert Gray-coded integer into a list of bits
-        gray_bits = format(gray_value, f"0{width}b")
-
-        return [int(bit) for bit in gray_bits]
+    def encode_color(color, width):
+        return [int(bit)for bit in format(color, f"0{width}b")]
 
     def mate_by_node(ind1, ind2):
         # Swap complete color genes
-        for node in range(graph.n_ct):
+        for node in range(graph.n):
             if random.random() < 0.5:
                 start = node * width
                 end = start + width
@@ -133,10 +155,10 @@ def run_ga(fp, population_size=300, ngen=200, cxpb=0.8, mutpb=0.3):
 
     def mutate_color(individual):
         # Mutate one node per selected individual
-        for node in range(graph.n_ct):
-            if random.random() < 1 / graph.n_ct:
+        for node in range(graph.n):
+            if random.random() < 1 / graph.n:
                 start = node * width
-                individual[start:start + width] = encode_color(random.randrange(graph.c_ct))
+                individual[start:start + width] = encode_color(random.randrange(graph.k), width)
         return (individual,)
 
     toolbox = base.Toolbox()
@@ -156,10 +178,10 @@ def run_ga(fp, population_size=300, ngen=200, cxpb=0.8, mutpb=0.3):
     coloring = decode_individual(graph, best_individual)
     fitness = eval_graph(graph, best_individual)
 
-    print(f"Best fitness: {fitness[0]} / {len(graph.edges)} satisfied edges")
+    print(f"Best fitness: {fitness[0]}")
     print(f"Color assignment: {coloring}")
 
-    return coloring, fitness
+    return fitness[0]
 
 def main():
     gdir = Path("graphs")

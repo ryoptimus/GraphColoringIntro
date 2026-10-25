@@ -53,7 +53,28 @@ def decode_individual(graph, individual):
     print("I'm decoding 0_0")
     width = bits_per_color(graph)
 
+    dmap = {}
+    for node in range(graph.num_nodes):
+        start = node * width
 
+        # Extract color bits
+        bits = individual[start:start + width]
+
+        if any(bit not in (0, 1) for bit in bits):
+            return None
+
+        # Convert list of bits into integer
+        gray_value = int("".join(map(str, bits)), 2)
+
+        # Convert Gray-coded integer to color number
+        color = gray_to_bin(gray_value)
+
+        # Reject invalid color values
+        if color >= graph.num_colors:
+            return None
+
+        dmap[node] = color
+    return dmap
 
 # Dec number (from bin) -> gray code
 def bin_to_gray(n):

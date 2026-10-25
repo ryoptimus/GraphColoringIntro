@@ -76,6 +76,11 @@ def decode_individual(graph, individual):
         dmap[node] = color
     return dmap
 
+def eval_graph(graph, individual):
+    dmap = decode_individual(graph, individual)
+    result = sum(1 for u,v in graph.edges if dmap[u] != dmap[v])
+    return (result,)
+
 # Dec number (from bin) -> gray code
 def bin_to_gray(n):
     # Right shift n (1bit)

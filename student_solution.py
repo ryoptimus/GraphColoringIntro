@@ -39,9 +39,21 @@ def init_graph(fp):
 
     print(f"{fp.name} initialized")
 
+def encode_color(color, width):
+    gray_value = bin_to_gray(color)
+
+    # Convert Gray-coded integer into a list of bits
+    gray_bits = format(gray_value, f"0{width}b")
+
+    return [int(bit) for bit in gray_bits]
+
 # individual should be size n
+# return dict with node-color mapping
 def decode_individual(graph, individual):
     print("I'm decoding 0_0")
+    width = bits_per_color(graph)
+
+
 
 # Dec number (from bin) -> gray code
 def bin_to_gray(n):
